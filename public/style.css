@@ -1,0 +1,242 @@
+:root {
+    --bg-color: #121212;
+    --card-bg: #1e1e1e;
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --text-main: #ffffff;
+    --text-muted: #a1a1aa;
+    --border: #27272a;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Landing Page */
+.landing-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.card {
+    background: var(--card-bg);
+    padding: 2.5rem;
+    border-radius: 1rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--border);
+}
+
+h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.875rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+input {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: white;
+    box-sizing: border-box;
+    /* Fix padding issue */
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--primary);
+    ring: 2px solid var(--primary);
+}
+
+.actions {
+    display: flex;
+    gap: 1rem;
+    flex-direction: column;
+}
+
+.btn {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn.primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn.primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+}
+
+.btn.secondary:hover {
+    background: #27272a;
+}
+
+/* Room Layout */
+.room-container {
+    display: flex;
+    height: 100vh;
+}
+
+.main-content {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+}
+
+.video-area {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+#mainVideo {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+#drawingCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    pointer-events: none;
+    /* Default to none, enable for teacher */
+}
+
+.controls {
+    height: 80px;
+    background: var(--card-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.control-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: none;
+    background: #3f3f46;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.control-btn:hover {
+    background: #52525b;
+}
+
+.control-btn.active {
+    background: var(--primary);
+}
+
+.control-btn.danger {
+    background: #ef4444;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 350px;
+    background: var(--card-bg);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.message {
+    background: #27272a;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.message .author {
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+
+.chat-input-area {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-input-area input {
+    flex: 1;
+}
+
+.chat-input-area button {
+    width: auto;
+    padding: 0 1rem;
+}
