@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Lecture Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="landing-container">
+        <div class="card">
+            <h1>Video Lecture</h1>
+            <p class="subtitle" id="subtitle">Premium Real-time Learning</p>
+
+            <div class="form-group">
+                <label for="username">이름</label>
+                <input type="text" id="username" placeholder="이름을 입력하세요" autofocus>
+            </div>
+
+            <div class="form-group" id="roomGroup">
+                <label for="roomId">강의실 ID</label>
+                <input type="text" id="roomId" placeholder="강의실 ID (예: room1)">
+            </div>
+
+            <div class="actions" id="actions">
+                <button id="joinBtn" class="btn primary">학생으로 입장</button>
+                <button id="createBtn" class="btn secondary">선생님으로 시작</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Check for room parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomParam = urlParams.get('room');
+
+        if (roomParam) {
+            // Invite link mode - student joining
+            document.getElementById('roomId').value = roomParam;
+            document.getElementById('roomGroup').style.display = 'none';
+            document.getElementById('subtitle').textContent = `강의실 "${roomParam}"에 입장`;
+            document.getElementById('createBtn').style.display = 'none';
+            document.getElementById('joinBtn').textContent = '입장하기';
+
+            // Press Enter to join
+            document.getElementById('username').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') joinRoom('student');
+            });
+        }
+
+        document.getElementById('joinBtn').addEventListener('click', () => joinRoom('student'));
+        document.getElementById('createBtn').addEventListener('click', () => joinRoom('teacher'));
+
+        function joinRoom(role) {
+            const username = document.getElementById('username').value.trim();
+            const roomId = document.getElementById('roomId').value.trim();
+
+            if (!username) {
+                alert('이름을 입력해주세요.');
+                return;
+            }
+
+            if (!roomId) {
+                alert('강의실 ID를 입력해주세요.');
+                return;
+            }
+
+            window.location.href = `/room?room=${encodeURIComponent(roomId)}&user=${encodeURIComponent(username)}&role=${role}`;
+        }
+    </script>
+</body>
+
+</html>
