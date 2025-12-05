@@ -32,13 +32,15 @@ const waitingScreen = document.getElementById('waitingScreen');
 
 // State
 let localStream;
-let peers = {}; // socketId -> { pc: RTCPeerConnection, videoElement: HTMLVideoElement }
+let peers = {}; // socketId -> { pc: RTCPeerConnection, videoContainer: HTMLDivElement }
 let isDrawing = false;
 let isDrawingMode = false;
 let lastX = 0;
 let lastY = 0;
 let currentColor = '#ef4444';
 let isEraser = false;
+let isScreenSharing = false;
+let pipThumbnailsContainer = null;
 
 // WebRTC Configuration
 const rtcConfig = {
@@ -131,6 +133,15 @@ socket.on('join-approved', async () => {
     socket.emit('join-room', roomId, username, role);
 });
 
+// Handle existing users in room (sent when you join)
+socket.on('existing-users', (users) => {
+    console.log('Existing users in room:', users);
+    // Create peer connections to all existing users
+    users.forEach(user => {
+        createPeerConnection(user.socketId, user.userId);
+    });
+});
+
 socket.on('user-connected', (socketId, userName) => {
     addMessage('System', `${userName}님이 입장했습니다.`);
     // Create peer connection
@@ -140,9 +151,9 @@ socket.on('user-connected', (socketId, userName) => {
 socket.on('user-disconnected', (socketId) => {
     addMessage('System', '참가자가 퇴장했습니다.');
     if (peers[socketId]) {
-        // Remove video element
-        if (peers[socketId].videoElement) {
-            peers[socketId].videoElement.remove();
+        // Remove video container
+        if (peers[socketId].videoContainer) {
+            peers[socketId].videoContainer.remove();
         }
         // Close peer connection
         peers[socketId].pc.close();
@@ -157,7 +168,7 @@ socket.on('chat-message', (data) => {
 // WebRTC Signaling
 socket.on('offer', async (payload) => {
     const pc = new RTCPeerConnection(rtcConfig);
-    peers[payload.caller] = { pc, videoElement: null };
+    peers[payload.caller] = { pc, videoContainer: null };
 
     pc.onicecandidate = (event) => {
         if (event.candidate) {
@@ -167,11 +178,11 @@ socket.on('offer', async (payload) => {
 
     pc.ontrack = (event) => {
         // Create video element for remote stream
-        if (!peers[payload.caller].videoElement) {
-            const videoContainer = createVideoElement(payload.caller, payload.callerName || 'Remote');
-            peers[payload.caller].videoElement = videoContainer.querySelector('video');
+        if (!peers[payload.caller].videoContainer) {
+            peers[payload.caller].videoContainer = createVideoElement(payload.caller, payload.callerName || 'Remote');
         }
-        peers[payload.caller].videoElement.srcObject = event.streams[0];
+        const video = peers[payload.caller].videoContainer.querySelector('video');
+        video.srcObject = event.streams[0];
     };
 
     // Add local stream to peer connection
@@ -211,7 +222,7 @@ socket.on('clear-canvas', () => {
 
 function createPeerConnection(targetSocketId, targetName) {
     const pc = new RTCPeerConnection(rtcConfig);
-    peers[targetSocketId] = { pc, videoElement: null };
+    peers[targetSocketId] = { pc, videoContainer: null };
 
     // Add local tracks to peer
     if (localStream) {
@@ -226,11 +237,11 @@ function createPeerConnection(targetSocketId, targetName) {
 
     pc.ontrack = (event) => {
         // Create video element for remote stream
-        if (!peers[targetSocketId].videoElement) {
-            const videoContainer = createVideoElement(targetSocketId, targetName);
-            peers[targetSocketId].videoElement = videoContainer.querySelector('video');
+        if (!peers[targetSocketId].videoContainer) {
+            peers[targetSocketId].videoContainer = createVideoElement(targetSocketId, targetName);
         }
-        peers[targetSocketId].videoElement.srcObject = event.streams[0];
+        const video = peers[targetSocketId].videoContainer.querySelector('video');
+        video.srcObject = event.streams[0];
     };
 
     pc.createOffer().then(offer => {
@@ -247,6 +258,7 @@ function createVideoElement(socketId, userName) {
     const video = document.createElement('video');
     video.autoplay = true;
     video.playsinline = true;
+    video.muted = false; // Remote videos should NOT be muted
 
     const label = document.createElement('div');
     label.className = 'video-label';
@@ -379,6 +391,9 @@ if (role === 'teacher') {
             localStream.addTrack(screenTrack);
             localVideo.srcObject = localStream;
 
+            // Mark local video as screen share
+            document.getElementById('localVideoContainer').classList.add('is-screen-share');
+
             // Replace track in all peer connections
             for (let id in peers) {
                 const pc = peers[id].pc;
@@ -388,8 +403,14 @@ if (role === 'teacher') {
                 }
             }
 
+            // Enable PIP mode
+            isScreenSharing = true;
+            enablePIPMode();
+
             screenTrack.onended = () => {
-                alert('화면 공유가 종료되었습니다.');
+                isScreenSharing = false;
+                disablePIPMode();
+                document.getElementById('localVideoContainer').classList.remove('is-screen-share');
             };
         } catch (e) {
             console.error(e);
@@ -434,6 +455,73 @@ if (role === 'teacher') {
             cameraBtn.classList.toggle('danger', !videoTrack.enabled);
         }
     });
+}
+
+// PIP Mode Functions
+function enablePIPMode() {
+    const videoArea = document.getElementById('videoArea');
+    videoArea.classList.add('screen-share-mode');
+
+    // Create thumbnails container
+    pipThumbnailsContainer = document.createElement('div');
+    pipThumbnailsContainer.className = 'pip-thumbnails';
+    videoArea.appendChild(pipThumbnailsContainer);
+
+    // Move all non-screen-share videos to thumbnails
+    const allVideos = videoGrid.querySelectorAll('.video-container:not(.is-screen-share)');
+    allVideos.forEach(container => {
+        pipThumbnailsContainer.appendChild(container);
+        makeDraggable(container);
+    });
+}
+
+function disablePIPMode() {
+    const videoArea = document.getElementById('videoArea');
+    videoArea.classList.remove('screen-share-mode');
+
+    if (pipThumbnailsContainer) {
+        // Move all thumbnails back to grid
+        const thumbnails = pipThumbnailsContainer.querySelectorAll('.video-container');
+        thumbnails.forEach(container => {
+            container.style.transform = '';
+            container.style.position = '';
+            videoGrid.appendChild(container);
+        });
+        pipThumbnailsContainer.remove();
+        pipThumbnailsContainer = null;
+    }
+}
+
+function makeDraggable(element) {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+    element.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+        e.preventDefault();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+        element.classList.add('dragging');
+    }
+
+    function elementDrag(e) {
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        element.style.position = 'absolute';
+        element.style.top = (element.offsetTop - pos2) + 'px';
+        element.style.left = (element.offsetLeft - pos1) + 'px';
+    }
+
+    function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+        element.classList.remove('dragging');
+    }
 }
 
 // Media Toggles for Students
