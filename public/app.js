@@ -266,7 +266,14 @@ function createVideoElement(socketId, userName) {
 
     videoContainer.appendChild(video);
     videoContainer.appendChild(label);
-    videoGrid.appendChild(videoContainer);
+
+    // If PIP mode is active, add to thumbnails container
+    if (isScreenSharing && pipThumbnailsContainer) {
+        pipThumbnailsContainer.appendChild(videoContainer);
+        makeDraggable(videoContainer);
+    } else {
+        videoGrid.appendChild(videoContainer);
+    }
 
     return videoContainer;
 }
