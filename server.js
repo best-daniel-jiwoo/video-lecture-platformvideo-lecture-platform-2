@@ -63,10 +63,8 @@ io.on('connection', (socket) => {
         });
     });
     socket.on('answer', (payload) => {
-        io.to(payload.target).emit('answer', {
-            ...payload,
-            caller: socket.id
-        });
+        // Don't add caller here - answer should go back to original offer sender
+        io.to(payload.target).emit('answer', payload);
     });
     socket.on('ice-candidate', (payload) => {
         io.to(payload.target).emit('ice-candidate', {
