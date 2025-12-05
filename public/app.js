@@ -3,12 +3,10 @@ const urlParams = new URLSearchParams(window.location.search);
 const roomId = urlParams.get('room');
 const username = urlParams.get('user');
 const role = urlParams.get('role'); // 'teacher' or 'student'
-
 if (!roomId || !username || !role) {
     alert('잘못된 접근입니다.');
     window.location.href = '/';
 }
-
 // DOM Elements
 const localVideo = document.getElementById('localVideo');
 const videoGrid = document.getElementById('videoGrid');
@@ -29,7 +27,6 @@ const colorBtns = document.querySelectorAll('.color-btn');
 const waitingList = document.getElementById('waitingList');
 const waitingItems = document.getElementById('waitingItems');
 const waitingScreen = document.getElementById('waitingScreen');
-
 // State
 let localStream;
 let peers = {}; // socketId -> { pc: RTCPeerConnection, videoContainer: HTMLDivElement }
@@ -41,25 +38,21 @@ let currentColor = '#ef4444';
 let isEraser = false;
 let isScreenSharing = false;
 let pipThumbnailsContainer = null;
-
 // WebRTC Configuration
 const rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' }
     ]
 };
-
 // --- Initialization ---
 async function init() {
     // Resize canvas
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-
     // UI Setup based on role
     if (role === 'teacher') {
         // Teacher joins immediately
         socket.emit('join-room', roomId, username, role);
-
         try {
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localVideo.srcObject = localStream;
@@ -67,32 +60,25 @@ async function init() {
             console.error('Error accessing media:', e);
             alert('카메라/마이크 접근 권한이 필요합니다.');
         }
-
         canvas.style.pointerEvents = 'none'; // Enable only when draw mode is on
     } else {
         // Student: Request to join
         waitingScreen.style.display = 'flex';
         socket.emit('request-join', roomId, username);
-
         // Student: Hide teacher-only controls
         screenBtn.style.display = 'none';
         drawBtn.style.display = 'none';
         clearBtn.style.display = 'none';
         inviteBtn.style.display = 'none';
         drawingTools.style.display = 'none';
-
         canvas.style.pointerEvents = 'none'; // Students never draw
     }
 }
-
 init();
-
 // --- Socket Events ---
-
 // Waiting Room (Teacher side)
 socket.on('join-request', (data) => {
     if (role !== 'teacher') return;
-
     waitingList.style.display = 'block';
     const div = document.createElement('div');
     div.id = `wait-${data.socketId}`;
@@ -102,25 +88,20 @@ socket.on('join-request', (data) => {
     div.style.display = 'flex';
     div.style.justifyContent = 'space-between';
     div.style.alignItems = 'center';
-
     div.innerHTML = `
         <span>${data.userId}</span>
         <button class="btn primary" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.75rem;">수락</button>
     `;
-
     div.querySelector('button').addEventListener('click', () => {
         socket.emit('approve-join', data.socketId);
         div.remove();
         if (waitingItems.children.length === 0) waitingList.style.display = 'none';
     });
-
     waitingItems.appendChild(div);
 });
-
 // Waiting Room (Student side)
 socket.on('join-approved', async () => {
     waitingScreen.style.display = 'none';
-
     // Student: Get media access after approval
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -129,10 +110,8 @@ socket.on('join-approved', async () => {
         console.error('Error accessing media:', e);
         alert('카메라/마이크 접근 권한이 필요합니다.');
     }
-
     socket.emit('join-room', roomId, username, role);
 });
-
 // Handle existing users in room (sent when you join)
 socket.on('existing-users', (users) => {
     console.log('Existing users in room:', users);
@@ -141,13 +120,11 @@ socket.on('existing-users', (users) => {
         createPeerConnection(user.socketId, user.userId);
     });
 });
-
 socket.on('user-connected', (socketId, userName) => {
     addMessage('System', `${userName}님이 입장했습니다.`);
     // Create peer connection
     createPeerConnection(socketId, userName);
 });
-
 socket.on('user-disconnected', (socketId) => {
     addMessage('System', '참가자가 퇴장했습니다.');
     if (peers[socketId]) {
@@ -160,22 +137,18 @@ socket.on('user-disconnected', (socketId) => {
         delete peers[socketId];
     }
 });
-
 socket.on('chat-message', (data) => {
     addMessage(data.user, data.msg);
 });
-
 // WebRTC Signaling
 socket.on('offer', async (payload) => {
     const pc = new RTCPeerConnection(rtcConfig);
     peers[payload.caller] = { pc, videoContainer: null };
-
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             socket.emit('ice-candidate', { target: payload.caller, candidate: event.candidate });
         }
     };
-
     pc.ontrack = (event) => {
         // Create video element for remote stream
         if (!peers[payload.caller].videoContainer) {
@@ -184,57 +157,49 @@ socket.on('offer', async (payload) => {
         const video = peers[payload.caller].videoContainer.querySelector('video');
         video.srcObject = event.streams[0];
     };
-
     // Add local stream to peer connection
     if (localStream) {
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     }
-
     await pc.setRemoteDescription(payload.sdp);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-
     socket.emit('answer', { target: payload.caller, sdp: answer });
 });
-
-socket.on('answer', (payload) => {
+socket.on('answer', async (payload) => {
     if (peers[payload.caller]) {
-        peers[payload.caller].pc.setRemoteDescription(payload.sdp);
+        try {
+            await peers[payload.caller].pc.setRemoteDescription(payload.sdp);
+        } catch (error) {
+            console.error('Error setting remote description:', error);
+        }
     }
 });
-
 socket.on('ice-candidate', (payload) => {
     if (peers[payload.caller]) {
         peers[payload.caller].pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
     }
 });
-
 // Drawing Events
 socket.on('draw', (data) => {
     drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.isEraser, false);
 });
-
 socket.on('clear-canvas', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 });
-
 // --- Functions ---
-
 function createPeerConnection(targetSocketId, targetName) {
     const pc = new RTCPeerConnection(rtcConfig);
     peers[targetSocketId] = { pc, videoContainer: null };
-
     // Add local tracks to peer
     if (localStream) {
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     }
-
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             socket.emit('ice-candidate', { target: targetSocketId, candidate: event.candidate });
         }
     };
-
     pc.ontrack = (event) => {
         // Create video element for remote stream
         if (!peers[targetSocketId].videoContainer) {
@@ -243,30 +208,25 @@ function createPeerConnection(targetSocketId, targetName) {
         const video = peers[targetSocketId].videoContainer.querySelector('video');
         video.srcObject = event.streams[0];
     };
-
     pc.createOffer().then(offer => {
         pc.setLocalDescription(offer);
         socket.emit('offer', { target: targetSocketId, caller: socket.id, callerName: username, sdp: offer });
     });
 }
-
 function createVideoElement(socketId, userName) {
     const videoContainer = document.createElement('div');
     videoContainer.className = 'video-container';
     videoContainer.id = `video-${socketId}`;
-
     const video = document.createElement('video');
     video.autoplay = true;
     video.playsinline = true;
     video.muted = false; // Remote videos should NOT be muted
-
     const label = document.createElement('div');
     label.className = 'video-label';
     label.textContent = userName;
-
     videoContainer.appendChild(video);
     videoContainer.appendChild(label);
-
+    
     // If PIP mode is active, add to thumbnails container
     if (isScreenSharing && pipThumbnailsContainer) {
         pipThumbnailsContainer.appendChild(videoContainer);
@@ -274,16 +234,13 @@ function createVideoElement(socketId, userName) {
     } else {
         videoGrid.appendChild(videoContainer);
     }
-
     return videoContainer;
 }
-
 // Chat
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
-
 function sendMessage() {
     const msg = chatInput.value;
     if (!msg) return;
@@ -291,7 +248,6 @@ function sendMessage() {
     addMessage('나', msg);
     chatInput.value = '';
 }
-
 function addMessage(user, msg) {
     const div = document.createElement('div');
     div.className = 'message';
@@ -299,19 +255,16 @@ function addMessage(user, msg) {
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
-
 // Drawing
 function resizeCanvas() {
     const rect = document.getElementById('videoArea').getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
 }
-
 function drawLine(x0, y0, x1, y1, color, eraser, emit) {
     ctx.beginPath();
     ctx.moveTo(x0 * canvas.width, y0 * canvas.height);
     ctx.lineTo(x1 * canvas.width, y1 * canvas.height);
-
     if (eraser) {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.lineWidth = 20;
@@ -320,17 +273,14 @@ function drawLine(x0, y0, x1, y1, color, eraser, emit) {
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
     }
-
     ctx.stroke();
     ctx.closePath();
-
     if (emit) {
         socket.emit('draw', roomId, {
             x0: x0, y0: y0, x1: x1, y1: y1, color: color, isEraser: eraser
         });
     }
 }
-
 // Drawing Interaction (Teacher Only)
 if (role === 'teacher') {
     canvas.addEventListener('mousedown', (e) => {
@@ -340,21 +290,17 @@ if (role === 'teacher') {
         lastX = (e.clientX - rect.left) / canvas.width;
         lastY = (e.clientY - rect.top) / canvas.height;
     });
-
     canvas.addEventListener('mousemove', (e) => {
         if (!isDrawing || !isDrawingMode) return;
         const rect = canvas.getBoundingClientRect();
         const currentX = (e.clientX - rect.left) / canvas.width;
         const currentY = (e.clientY - rect.top) / canvas.height;
-
         drawLine(lastX, lastY, currentX, currentY, currentColor, isEraser, true);
         lastX = currentX;
         lastY = currentY;
     });
-
     canvas.addEventListener('mouseup', () => isDrawing = false);
     canvas.addEventListener('mouseout', () => isDrawing = false);
-
     // Controls
     drawBtn.addEventListener('click', () => {
         isDrawingMode = !isDrawingMode;
@@ -362,45 +308,37 @@ if (role === 'teacher') {
         canvas.style.pointerEvents = isDrawingMode ? 'auto' : 'none';
         drawingTools.style.display = isDrawingMode ? 'flex' : 'none';
     });
-
     // Color Selection
     colorBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             isEraser = false;
             currentColor = e.target.dataset.color;
-
             // Visual feedback
             colorBtns.forEach(b => b.style.border = 'none');
             eraserBtn.classList.remove('active');
             e.target.style.border = '2px solid white';
         });
     });
-
     eraserBtn.addEventListener('click', () => {
         isEraser = true;
         colorBtns.forEach(b => b.style.border = 'none');
         eraserBtn.classList.add('active');
     });
-
     clearBtn.addEventListener('click', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         socket.emit('clear-canvas', roomId);
     });
-
     screenBtn.addEventListener('click', async () => {
         try {
             const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
             const screenTrack = screenStream.getVideoTracks()[0];
-
             // Replace track in local video
             const videoTrack = localStream.getVideoTracks()[0];
             localStream.removeTrack(videoTrack);
             localStream.addTrack(screenTrack);
             localVideo.srcObject = localStream;
-
             // Mark local video as screen share
             document.getElementById('localVideoContainer').classList.add('is-screen-share');
-
             // Replace track in all peer connections
             for (let id in peers) {
                 const pc = peers[id].pc;
@@ -409,11 +347,9 @@ if (role === 'teacher') {
                     sender.replaceTrack(screenTrack);
                 }
             }
-
             // Enable PIP mode
             isScreenSharing = true;
             enablePIPMode();
-
             screenTrack.onended = () => {
                 isScreenSharing = false;
                 disablePIPMode();
@@ -423,10 +359,8 @@ if (role === 'teacher') {
             console.error(e);
         }
     });
-
     inviteBtn.addEventListener('click', async () => {
         const inviteUrl = `${window.location.origin}/?room=${encodeURIComponent(roomId)}`;
-
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(inviteUrl);
@@ -439,11 +373,9 @@ if (role === 'teacher') {
             showCopyPrompt(inviteUrl);
         }
     });
-
     function showCopyPrompt(url) {
         alert('📋 초대 링크 (복사해서 공유하세요):\n\n' + url);
     }
-
     // Media Toggles
     micBtn.addEventListener('click', () => {
         if (!localStream) return;
@@ -453,7 +385,6 @@ if (role === 'teacher') {
             micBtn.classList.toggle('danger', !audioTrack.enabled);
         }
     });
-
     cameraBtn.addEventListener('click', () => {
         if (!localStream) return;
         const videoTrack = localStream.getVideoTracks()[0];
@@ -463,17 +394,14 @@ if (role === 'teacher') {
         }
     });
 }
-
 // PIP Mode Functions
 function enablePIPMode() {
     const videoArea = document.getElementById('videoArea');
     videoArea.classList.add('screen-share-mode');
-
     // Create thumbnails container
     pipThumbnailsContainer = document.createElement('div');
     pipThumbnailsContainer.className = 'pip-thumbnails';
     videoArea.appendChild(pipThumbnailsContainer);
-
     // Move all non-screen-share videos to thumbnails
     const allVideos = videoGrid.querySelectorAll('.video-container:not(.is-screen-share)');
     allVideos.forEach(container => {
@@ -481,11 +409,9 @@ function enablePIPMode() {
         makeDraggable(container);
     });
 }
-
 function disablePIPMode() {
     const videoArea = document.getElementById('videoArea');
     videoArea.classList.remove('screen-share-mode');
-
     if (pipThumbnailsContainer) {
         // Move all thumbnails back to grid
         const thumbnails = pipThumbnailsContainer.querySelectorAll('.video-container');
@@ -498,12 +424,9 @@ function disablePIPMode() {
         pipThumbnailsContainer = null;
     }
 }
-
 function makeDraggable(element) {
     let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-
     element.onmousedown = dragMouseDown;
-
     function dragMouseDown(e) {
         e.preventDefault();
         pos3 = e.clientX;
@@ -512,7 +435,6 @@ function makeDraggable(element) {
         document.onmousemove = elementDrag;
         element.classList.add('dragging');
     }
-
     function elementDrag(e) {
         e.preventDefault();
         pos1 = pos3 - e.clientX;
@@ -523,14 +445,12 @@ function makeDraggable(element) {
         element.style.top = (element.offsetTop - pos2) + 'px';
         element.style.left = (element.offsetLeft - pos1) + 'px';
     }
-
     function closeDragElement() {
         document.onmouseup = null;
         document.onmousemove = null;
         element.classList.remove('dragging');
     }
 }
-
 // Media Toggles for Students
 if (role === 'student') {
     micBtn.addEventListener('click', () => {
@@ -541,7 +461,6 @@ if (role === 'student') {
             micBtn.classList.toggle('danger', !audioTrack.enabled);
         }
     });
-
     cameraBtn.addEventListener('click', () => {
         if (!localStream) return;
         const videoTrack = localStream.getVideoTracks()[0];
